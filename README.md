@@ -1,66 +1,146 @@
 # RCA-GPT
 
-AI-powered root cause assistant for support engineers.---
+AI-powered root cause analysis assistant for support engineers.
 
-## ✅ PHASE 1: LOG MONITORING SYSTEM (COMPLETED)
+## 🚀 Quick Start
+```bash
+# Install
+pip install -r requirements.txt
+pip install -e .
 
-This phase recreated the basics of how logs are generated, monitored, and alerted on in a production support environment.
+# Generate logs (for demo)
+bash bash/generate_logs.sh &
 
-### 🔹 1. Log Generator (Simulated)
-We wrote a script to simulate a real application producing logs in real time. It writes random log entries (INFO, WARN, ERROR) every 2 seconds to a file.
+# Parse logs
+rca-gpt parse
 
-### 🔹 2. Error Monitor
-Another script checks the most recent log entries for spikes in `ERROR`s. If too many are found, it writes a timestamped alert to an alert log — mimicking how tools like Splunk or CloudWatch trigger alarms.
+# Train model (requires labeled training data)
+rca-gpt train
 
-### 🔹 3. Automation via Cron
-The monitoring script is scheduled to run every minute using a `cron` job, making the process automated like it would be in production systems.
+# Classify incidents
+rca-gpt predict "Invalid token"
+```
 
-### 🔹 4. Real-Time Observation
-Used `tail -f` to observe live logs from the terminal, simulating an engineer monitoring a live system under pressure.
+## 📁 Project Structure
+```
+rca-gpt/
+├── rca_gpt/           # Core Python package
+│   ├── parser.py      # Log parsing
+│   ├── trainer.py     # ML training
+│   └── predictor.py   # Classification
+├── config/            # Configuration
+│   └── config.yaml
+├── data/
+│   ├── raw/          # Auto-generated logs
+│   └── training/     # Labeled training data
+├── models/           # Saved ML models
+└── cli.py           # Command-line interface
+```
 
+## 🎯 Features
 
-## ✅ Phase 2: Structured Log Parser (Python)
+### ✅ Phase 1: Log Monitoring (Completed)
+- Automated log generation and monitoring
+- Pattern-based error detection
+- Scheduled monitoring via cron
 
-- Parses `app.log` into structured rows using Python and regex
-- Extracts fields: `timestamp`, `log level`, `message`
-- Saves output as `logs/structured_logs.csv`
-- Output is used directly as training data for the ML classifier
+### ✅ Phase 2: Structured Parsing (Completed)
+- Regex-based log parsing
+- CSV export for analysis
+- Configurable via YAML
 
----
+### ✅ Phase 3: ML Classification (Completed)
+- TF-IDF + Logistic Regression classifier
+- Persistent model storage
+- Batch and single prediction modes
 
-## ✅ Phase 3: Incident Classification (ML)
+### ✅ Sprint 0: Foundation (Current)
+- **NEW:** Config-driven architecture
+- **NEW:** Persistent ML models (no retraining needed)
+- **NEW:** Proper Python package structure
+- **NEW:** CLI interface
+- **FIXED:** Training data preservation
 
-- Labeled logs using a new `incident_type` column
-- Built a classifier using `TfidfVectorizer` + `LogisticRegression`
-- Automatically predicts incident types based on message content
-- Prints a full classification report (precision, recall, F1-score)
-- Examples of supported labels: `Auth Error`, `Timeout`, `DB Error`, `Normal`
+## 🛠️ Usage
 
-> This phase is fully trainable and testable using `incident_classifier.py`.
+### Parse Logs
+```bash
+# Parse with defaults
+rca-gpt parse
 
----
+# Custom input/output
+rca-gpt parse -i logs/custom.log -o data/output.csv
 
-## 🚀 Versioning
+# Append mode
+rca-gpt parse --append
+```
 
-This repository is currently at:
+### Train Model
+```bash
+# Train from labeled data
+rca-gpt train
 
-**v1.0 – ML-based RCA pipeline**
+# Model saved to: models/classifier.pkl
+```
 
-- Fully working bash + Python incident monitoring
-- Generates logs, parses them, and classifies incidents using ML
-- Designed to mirror real-world support automation from scratch
+### Predict Incidents
+```bash
+# Single message
+rca-gpt predict "Connection refused"
 
----
+# Batch prediction
+echo "Invalid token
+Connection timeout
+Login failed" > messages.txt
 
-## 🧠 What's Next (v2.0)
+rca-gpt predict -b messages.txt
+```
 
-- Integrate GPT/LLM to generate RCA summaries
-- Add UI/CLI interface for user-friendly interaction
-- Expand incident type taxonomy and classifier
+## 📊 Training Data Format
 
----
+`data/training/training_data.csv`:
+```csv
+level,timestamp,message,incident_type
+ERROR,12/06/25 10:57,Invalid token,Auth Error
+WARN,12/06/25 10:57,Connection refused,DB Error
+INFO,12/06/25 10:57,Timeout,Timeout
+INFO,12/06/25 10:57,Login success,Normal
+```
+
+**Supported incident types:**
+- `Auth Error` - Authentication/authorization failures
+- `Timeout` - Request timeouts
+- `DB Error` - Database connection issues
+- `Normal` - Successful operations
+
+## 🔧 Configuration
+
+Edit `config/config.yaml` to customize:
+- Log file paths
+- Monitoring thresholds
+- Model parameters
+- Data locations
+
+## 🚧 Roadmap for V2
+
+- **Sprint 1:** Incident database (SQLite)
+- **Sprint 2:** Similar incident matching
+- **Sprint 3:** Timeline analysis
+- **Sprint 4:** Pattern mining
+- **Sprint 5:** Causality graphs
+- **Sprint 6:** Runbook system
+
+## 📝 Version History
+
+- **v1.0 (Sprint 0)** - Foundation cleanup, persistent models, CLI
+- **v0.3** - ML-based classification
+- **v0.2** - Structured parsing
+- **v0.1** - Basic monitoring
 
 ## 👨‍💻 Author
 
-**Sai Sampath Ayalasomayajula**  
-Built to learn, demonstrate, and automate root cause analysis pipelines using real tools from scratch.
+Sai Sampath Ayalasomayajula
+
+## 📄 License
+
+MIT License - see LICENSE file
