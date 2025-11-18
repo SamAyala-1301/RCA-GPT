@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setup(
     name="rca-gpt",
-    version="1.0.0",
+    version="1.1.0",
     author="Sai Sampath Ayalasomayajula",
     description="AI-powered root cause analysis for support engineers",
     long_description=long_description,
@@ -22,11 +22,11 @@ setup(
         "pandas>=2.0.0",
         "scikit-learn>=1.3.0",
         "pyyaml>=6.0",
+        "sqlalchemy>=2.0.0",
     ],
     entry_points={
         "console_scripts": [
-            "rca-gpt=cli:main",
+            "rca-gpt=rca_gpt.cli:main",
         ],
     },
 )
-
