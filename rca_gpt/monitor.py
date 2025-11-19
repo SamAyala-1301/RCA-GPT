@@ -10,6 +10,7 @@ import yaml
 from .parser import LogParser
 from .predictor import IncidentPredictor
 from .db.manager import IncidentDatabase
+from .similarity import SimilarityMatcher
 
 
 class LogMonitor:
@@ -29,6 +30,7 @@ class LogMonitor:
         # Track last position in log file
         self.last_position = 0
         self.log_file = Path(self.config['logging']['app_log_file'])
+        self.similarity_matcher = SimilarityMatcher(config_path)
     
     def read_new_logs(self):
         """
@@ -124,6 +126,20 @@ class LogMonitor:
         for incident_data in incidents_detected:
             log = incident_data['log']
             prediction = incident_data['prediction']
+
+        if is_new:
+            # Find similar incidents
+            similar = self.similarity_matcher.get_similar_with_context(log['message'])
+    
+            if similar:
+                print(f"   📊 Similar incidents found:")
+
+            for s in similar[:3]:
+                inc = s['incident']
+                days_ago = (datetime.now() - datetime.fromisoformat(inc['last_seen'])).days
+                print(f"      #{inc['id']} - {days_ago} days ago ({s['similarity']:.0%} similar)")
+                if s['resolution']:
+                    print(f"         Fixed: {s['resolution']['notes']}")
             
             # Get context
             idx = new_logs.index(log)

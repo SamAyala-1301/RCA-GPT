@@ -227,8 +227,188 @@ def cmd_export(args):
     
     print(f"✅ Exported {len(incidents)} incidents to: {output_file}")
 
+def cmd_similar(args):
+    """Find similar incidents"""
+    from .similarity import SimilarityMatcher
+    
+    matcher = SimilarityMatcher(args.config)
+    results = matcher.get_similar_with_context(args.message, top_k=args.top)
+    
+    if not results:
+        print("No similar incidents found")
+        return
+    
+    print(f"\n🔍 Found {len(results)} similar incident(s):\n")
+    
+    for i, r in enumerate(results, 1):
+        inc = r['incident']
+        print(f"{i}. Incident #{inc['id']} ({r['similarity']:.0%} similar)")
+        print(f"   Type: {inc['incident_type']}")
+        print(f"   Message: {inc['message_template']}")
+        print(f"   Occurrences: {inc['occurrence_count']}")
+        
+        if r['resolution']:
+            print(f"   ✅ Resolution: {r['resolution']['notes']}")
+        else:
+            print(f"   ⏳ Unresolved")
+        print()
 
-# Now update the main() function to include new commands
+def cmd_patterns(args):
+    """Show discovered patterns"""
+    from .patterns import PatternMiner
+    
+    miner = PatternMiner(args.config)
+    patterns = miner.mine_patterns(days=args.days, min_support=args.min_support)
+    
+    if not patterns:
+        print("No patterns found")
+        return
+    
+    print(f"\n🔍 Found {len(patterns)} recurring pattern(s):\n")
+    
+    for i, p in enumerate(patterns, 1):
+        print(f"{i}. {p['pattern']}")
+        print(f"   Occurrences: {p['occurrences']}")
+        print(f"   Avg cascade time: {p['avg_cascade_time_seconds']:.0f}s")
+        print()
+
+def cmd_timeline(args):
+    """Show incident timeline"""
+    from .timeline import TimelineAnalyzer
+    
+    analyzer = TimelineAnalyzer(args.config)
+    timeline = analyzer.get_timeline(args.incident_id, 
+                                     minutes_before=args.before,
+                                     minutes_after=args.after)
+    
+    if not timeline:
+        print(f"Incident #{args.incident_id} not found")
+        return
+    
+    print(f"\n🕐 Timeline for Incident #{args.incident_id}")
+    print("=" * 80)
+    
+    target_time = timeline['target_time']
+    
+    if timeline['original_sin']:
+        os = timeline['original_sin']
+        print(f"\n🔍 ORIGINAL SIN (First error before incident):")
+        print(f"   {os['minutes_from_target']:.1f} min before: [{os['severity']}] {os['message']}")
+    
+    print(f"\n📋 Events ({len(timeline['events'])} total):\n")
+    
+    for event in timeline['events']:
+        marker = "🎯" if event['is_target'] else "  "
+        time_str = f"{event['minutes_from_target']:+.1f}min"
+        severity_color = event['severity']
+        
+        print(f"{marker} {time_str:>8} [{severity_color:5}] {event['message'][:60]}")
+
+def cmd_parse(args):
+    """Parse logs to CSV using LogParser (best-effort wrapper)."""
+    out = args.output if hasattr(args, 'output') and args.output else None
+    try:
+        # Try to construct LogParser with input if provided, else default
+        parser = LogParser(args.input) if hasattr(args, 'input') and args.input else LogParser()
+    except Exception:
+        parser = LogParser()
+
+    try:
+        # Try common export method names — robust fallback
+        if out and hasattr(parser, 'to_csv'):
+            parser.to_csv(out, append=getattr(args, 'append', False))
+            print(f"✅ Parsed logs written to {out}")
+        elif out and hasattr(parser, 'parse_to_csv'):
+            parser.parse_to_csv(out, append=getattr(args, 'append', False))
+            print(f"✅ Parsed logs written to {out}")
+        elif hasattr(parser, 'parse'):
+            records = parser.parse()
+            # If parse() returns list of dicts, write CSV; else dump lines
+            if records and isinstance(records, list) and isinstance(records[0], dict):
+                import csv
+                out_file = out or 'parsed.csv'
+                mode = 'a' if getattr(args, 'append', False) else 'w'
+                with open(out_file, mode, newline='') as f:
+                    writer = csv.DictWriter(f, fieldnames=records[0].keys())
+                    if mode == 'w':
+                        writer.writeheader()
+                    writer.writerows(records)
+                print(f"✅ Parsed logs written to {out_file}")
+            else:
+                out_file = out or 'parsed.txt'
+                mode = 'a' if getattr(args, 'append', False) else 'w'
+                with open(out_file, mode) as f:
+                    for r in records:
+                        f.write(str(r) + "\n")
+                print(f"✅ Parsed logs written to {out_file}")
+        else:
+            print("⚠️  LogParser does not expose a known export method (to_csv/parse_to_csv/parse).")
+    except Exception as e:
+        print("❌ Error while parsing logs:", e)
+        raise
+
+
+def cmd_train(args):
+    """Train ML model / classifier (wrapper)."""
+    try:
+        trainer = IncidentClassifier(args.config)
+    except Exception:
+        trainer = IncidentClassifier()
+
+    try:
+        # Common API: trainer.train() or trainer.fit()
+        if hasattr(trainer, 'train'):
+            trainer.train()
+        elif hasattr(trainer, 'fit'):
+            trainer.fit()
+        else:
+            print("⚠️  IncidentClassifier has no train/fit method.")
+            return
+        print("✅ Training complete")
+    except Exception as e:
+        print("❌ Training failed:", e)
+        raise
+
+
+def cmd_predict(args):
+    """Predict incident type for a single message or a batch file."""
+    try:
+        predictor = IncidentPredictor(args.config)
+    except Exception:
+        predictor = IncidentPredictor()
+
+    try:
+        if getattr(args, 'batch', None):
+            # batch file: one message per line
+            with open(args.batch, 'r') as f:
+                msgs = [ln.strip() for ln in f if ln.strip()]
+            for m in msgs:
+                if hasattr(predictor, 'predict'):
+                    res = predictor.predict(m)
+                elif hasattr(predictor, 'infer'):
+                    res = predictor.infer(m)
+                else:
+                    res = None
+                print(m)
+                print(" ->", res)
+        else:
+            message = getattr(args, 'message', None)
+            if not message:
+                print("❗ No message provided to predict")
+                return
+            if hasattr(predictor, 'predict'):
+                res = predictor.predict(message)
+            elif hasattr(predictor, 'infer'):
+                res = predictor.infer(message)
+            else:
+                res = None
+            print("Prediction:")
+            print(res)
+    except Exception as e:
+        print("❌ Prediction failed:", e)
+        raise
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='RCA-GPT: AI-powered Root Cause Analysis',
@@ -315,6 +495,19 @@ Examples:
     export_parser.add_argument('--limit', type=int, default=1000, help='Max incidents to export')
     export_parser.add_argument('--include-occurrences', action='store_true', help='Include all occurrences')
     
+    similar_parser = subparsers.add_parser('similar', help='Find similar incidents')
+    similar_parser.add_argument('message', help='Message to compare')
+    similar_parser.add_argument('--top', type=int, default=5, help='Number of results')
+
+    patterns_parser = subparsers.add_parser('patterns', help='Show incident patterns')
+    patterns_parser.add_argument('--days', type=int, default=30, help='Look back period')
+    patterns_parser.add_argument('--min-support', type=int, default=3, help='Min occurrences')  
+
+    timeline_parser = subparsers.add_parser('timeline', help='Show incident timeline')
+    timeline_parser.add_argument('incident_id', type=int, help='Incident ID')
+    timeline_parser.add_argument('--before', type=int, default=10, help='Minutes before')
+    timeline_parser.add_argument('--after', type=int, default=5, help='Minutes after')
+
     args = parser.parse_args()
     
     if not args.command:
@@ -323,16 +516,19 @@ Examples:
     
     # Route to appropriate function
     commands = {
-        'parse': cmd_parse,
-        'train': cmd_train,
-        'predict': cmd_predict,
-        'monitor': cmd_monitor,
-        'history': cmd_history,
-        'show': cmd_show,
-        'stats': cmd_stats,
-        'resolve': cmd_resolve,
-        'search': cmd_search,
-        'export': cmd_export
+    'parse': cmd_parse,
+    'train': cmd_train,
+    'predict': cmd_predict,
+    'monitor': cmd_monitor,
+    'history': cmd_history,
+    'show': cmd_show,
+    'stats': cmd_stats,
+    'resolve': cmd_resolve,
+    'search': cmd_search,
+    'export': cmd_export,
+    'similar': cmd_similar,     
+    'patterns': cmd_patterns,    
+    'timeline': cmd_timeline    
     }
     
     try:
